@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>S.I.F - Sistema POS</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="icono" />
+      S.I.F
+    </div>
+    <h1>Sistema de Inventario y Facturación</h1>
+    <div class="spacer"></div>
+  </header>
+
+  <!-- Menú centrado (oculto hasta login) -->
+  <nav class="menu" id="menu" style="display:none;">
+    <ul>
+      <li><a href="#inicio">Inicio</a></li>
+      <li>
+        <a href="#productos">Productos</a>
+        <ul>
+          <li><a href="#listar-productos">Listar</a></li>
+          <li><a href="#agregar-producto">Agregar</a></li>
+          <li><a href="#variantes">Variantes</a></li>
+        </ul>
+      </li>
+      <li>
+        <a href="#inventario">Inventario</a>
+        <ul>
+          <li><a href="#movimientos">Movimientos</a></li>
+        </ul>
+      </li>
+      <li>
+        <a href="#ventas">Ventas</a>
+        <ul>
+          <li><a href="#nueva-venta">Nueva venta</a></li>
+          <li><a href="#reportes-ventas">Reportes</a></li>
+        </ul>
+      </li>
+      <li>
+        <a href="#configuracion">Configuración⚙️</a>
+        <ul>
+          <li><a href="#etiquetas">Etiquetas</a></li>
+          <li><a href="#tarjetas">Tarjetas</a></li>
+        </ul>
+      </li>
+    </ul>
+  </nav>
+
+  <main class="container">
+    <section class="card" id="contenido">
+      <!-- Inicio: solo login y registro -->
+      <h2>Bienvenido</h2>
+      <button onclick="ui.mostrarLogin()">Iniciar sesión</button>
+      <button class="sec" onclick="ui.mostrarRegistro()">Registrarse</button>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
