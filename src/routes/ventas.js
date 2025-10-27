@@ -1,69 +1,79 @@
 const express = require('express');
-const db = require('../db');
-const auth = require('../middleware/auth');
 const router = express.Router();
+const pool = require('../db'); // conexión a PostgreSQL
 
-router.post('/', auth(), async (req, res) => {
-  const { items, forma_pago, tipo_tarjeta_id, porcentaje_tarjeta_id } = req.body;
-  if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'Sin items' });
-  if (!['efectivo','tarjeta','transferencia'].includes(forma_pago)) return res.status(400).json({ error: 'Forma de pago inválida' });
-
-  await db.query('BEGIN');
+// Obtener todas las ventas
+router.get('/', async (req, res) => {
   try {
-    const total_bruto = items.reduce((s, it) => s + (Number(it.precio_unitario) * Number(it.cantidad)), 0);
-    let recargo_tarjeta = 0;
-    if (forma_pago === 'tarjeta') {
-      if (!tipo_tarjeta_id || !porcentaje_tarjeta_id) throw new Error('Tarjeta/porcentaje requerido');
-      const r = await db.query('SELECT porcentaje FROM porcentajes_tarjeta WHERE id=$1 AND tipo_tarjeta_id=$2', [porcentaje_tarjeta_id, tipo_tarjeta_id]);
-      if (!r.rowCount) throw new Error('Porcentaje no encontrado');
-      const porcentaje = Number(r.rows[0].porcentaje);
-      recargo_tarjeta = (total_bruto * porcentaje) / 100;
-    }
-    const total_final = total_bruto + recargo_tarjeta;
-
-    const venta = await db.query(
-      `INSERT INTO ventas (total_bruto, recargo_tarjeta, total_final, moneda, forma_pago, tipo_tarjeta_id, porcentaje_tarjeta_id, creado_por)
-       VALUES ($1,$2,$3,'ARS',$4,$5,$6,$7) RETURNING id`,
-      [total_bruto, recargo_tarjeta, total_final, forma_pago, tipo_tarjeta_id || null, porcentaje_tarjeta_id || null, req.user.id]
-    );
-    const venta_id = venta.rows[0].id;
-
-    for (const it of items) {
-      await db.query(
-        `INSERT INTO ventas_items (venta_id, producto_id, variante_id, cantidad, precio_unitario, subtotal)
-         VALUES ($1,$2,$3,$4,$5,$6)`,
-        [venta_id, it.producto_id || null, it.variante_id || null, it.cantidad, it.precio_unitario, it.cantidad * it.precio_unitario]
-      );
-      await db.query(
-        `INSERT INTO movimientos_inventario (producto_id, variante_id, tipo, cantidad, motivo, usuario_id)
-         VALUES ($1,$2,'salida',$3,'venta',$4)`,
-        [it.producto_id || null, it.variante_id || null, it.cantidad, req.user.id]
-      );
-      if (it.variante_id) {
-        await db.query(`UPDATE variantes SET stock = stock - $1, actualizado_en=NOW() WHERE id=$2`, [it.cantidad, it.variante_id]);
-      } else {
-        await db.query(`UPDATE productos SET stock = stock - $1, actualizado_en=NOW() WHERE id=$2`, [it.cantidad, it.producto_id]);
-      }
-    }
-
-    await db.query('COMMIT');
-    res.json({ id: venta_id, total_bruto, recargo_tarjeta, total_final });
-  } catch (e) {
-    await db.query('ROLLBACK');
-    res.status(400).json({ error: e.message || 'Error al crear venta' });
+    const result = await pool.query('SELECT * FROM ventas ORDER BY id ASC');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error al obtener ventas:', err.message);
+    res.status(500).json({ error: 'Error en el servidor' });
   }
 });
 
-router.get('/', auth(), async (req, res) => {
-  const { desde, hasta } = req.query;
-  let sql = `SELECT * FROM ventas`;
-  const where = [], params = [];
-  if (desde) { params.push(desde); where.push(`DATE(creado_en) >= $${params.length}`); }
-  if (hasta) { params.push(hasta); where.push(`DATE(creado_en) <= $${params.length}`); }
-  if (where.length) sql += ` WHERE ${where.join(' AND ')}`;
-  sql += ` ORDER BY id DESC`;
-  const r = await db.query(sql, params);
-  res.json(r.rows);
+// Crear una nueva venta
+router.post('/', async (req, res) => {
+  try {
+    const { cliente_id, total } = req.body;
+    if (!cliente_id || !total) {
+      return res.status(400).json({ error: 'cliente_id y total son requeridos' });
+    }
+
+    const result = await pool.query(
+      'INSERT INTO ventas (cliente_id, total) VALUES ($1, $2) RETURNING *',
+      [cliente_id, total]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error al crear venta:', err.message);
+    res.status(500).json({ error: 'Error en el servidor' });
+  }
+});
+
+// Actualizar una venta
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { cliente_id, total } = req.body;
+
+    const result = await pool.query(
+      'UPDATE ventas SET cliente_id = $1, total = $2 WHERE id = $3 RETURNING *',
+      [cliente_id, total, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Venta no encontrada' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error al actualizar venta:', err.message);
+    res.status(500).json({ error: 'Error en el servidor' });
+  }
+});
+
+// Eliminar una venta
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      'DELETE FROM ventas WHERE id = $1 RETURNING *',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Venta no encontrada' });
+    }
+
+    res.json({ message: 'Venta eliminada correctamente' });
+  } catch (err) {
+    console.error('Error al eliminar venta:', err.message);
+    res.status(500).json({ error: 'Error en el servidor' });
+  }
 });
 
 module.exports = router;
