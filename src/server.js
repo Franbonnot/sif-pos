@@ -1,14 +1,20 @@
 // src/server.js
-require('dotenv').config(); // carga variables de .env en local
+require('dotenv').config(); // solo afecta en local, en Render ya están las env vars
 const express = require('express');
 const cors = require('cors');
+
 const app = express();
 
 // Middlewares
 app.use(cors());
 app.use(express.json());
 
-// Rutas
+// Ruta raíz de prueba (para evitar "Cannot GET /")
+app.get('/', (req, res) => {
+  res.send('API funcionando 🚀');
+});
+
+// Rutas de la API
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/productos', require('./routes/productos'));
 app.use('/api/etiquetas', require('./routes/etiquetas'));
